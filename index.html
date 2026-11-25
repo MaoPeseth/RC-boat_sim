@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RC board speed simulator</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#eef3f4;--panel:#fff;--ink:#12262b;--mute:#5a6f74;--line:#c9d6d8;--teal:#0e6b73;--red:#d2432f;--sel:#dcecee}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1a1d;--panel:#152428;--ink:#e6eef0;--mute:#93a9ae;--line:#2a3d42;--teal:#4cc3cc;--red:#ff7a63;--sel:#1d3439}}
+:root[data-theme="dark"]{--bg:#0e1a1d;--panel:#152428;--ink:#e6eef0;--mute:#93a9ae;--line:#2a3d42;--teal:#4cc3cc;--red:#ff7a63;--sel:#1d3439}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Barlow,system-ui,sans-serif}
+header{padding:28px 24px 8px;max-width:1280px;margin:0 auto}
+h1{font:700 40px/1 "Barlow Condensed",Impact,sans-serif;margin:0 0 8px;letter-spacing:.01em}
+header p{margin:0;color:var(--mute);max-width:70ch}
+main{max-width:1280px;margin:0 auto;padding:16px 24px 48px;display:grid;grid-template-columns:minmax(300px,380px) 1fr;gap:24px;align-items:start}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px}
+h2{font:600 22px/1.1 "Barlow Condensed",sans-serif;margin:0 0 12px}
+label{display:block;margin:10px 0 0;font-weight:500}
+label small{display:block;color:var(--mute);font-weight:400}
+input{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);font:inherit}
+input:focus-visible,button:focus-visible{outline:2px solid var(--teal);outline-offset:1px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.motors{overflow-x:auto;margin-top:6px}
+.motors table{border-collapse:collapse;min-width:100%}
+.motors th{font-weight:500;color:var(--mute);text-align:left;font-size:13px;padding:0 4px 2px}
+.motors td{padding:2px 3px}.motors input{padding:5px 6px;min-width:58px}.motors td:first-child input{min-width:130px}
+button{font:600 15px Barlow,sans-serif;border-radius:4px;padding:9px 14px;cursor:pointer;border:1px solid var(--teal);background:transparent;color:var(--teal)}
+button.go{background:var(--teal);color:var(--bg);width:100%;margin-top:16px;padding:12px;font-size:17px}
+button.x{border-color:var(--line);color:var(--mute);padding:4px 8px}
+#status{margin:10px 0 0;min-height:1.4em;color:var(--mute)}#status.err{color:var(--red)}
+.best{display:flex;flex-wrap:wrap;gap:6px 36px;align-items:baseline;margin-bottom:6px}
+.big{font:700 64px/1 "Barlow Condensed",sans-serif;color:var(--teal)}
+.big span{font-size:24px;color:var(--mute);margin-left:4px}
+.facts{color:var(--mute)}.facts b{color:var(--ink);font-weight:600}
+.tw{overflow-x:auto;margin-top:12px}
+table.res{border-collapse:collapse;width:100%;white-space:nowrap}
+.res th{text-align:right;font-weight:500;color:var(--mute);font-size:13px;padding:6px 8px;border-bottom:1px solid var(--line)}
+.res td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.res th:first-child,.res td:first-child{text-align:left}
+.res tbody tr{cursor:pointer}.res tbody tr:hover{background:var(--sel)}.res tr.on{background:var(--sel);font-weight:600}
+.note{color:var(--mute);font-size:13px;margin:10px 0 0}
+svg{width:100%;height:auto;display:block}
+</style>
+</head>
+<body>
+<header>
+<h1>RC board speed simulator</h1>
+<p>Enter your motor, battery, propeller and hull options. The simulator finds the speed where propeller thrust equals hull drag for every combination, and ranks them.</p>
+</header>
+<main>
+<div>
+<section>
+<h2>Boat and battery</h2>
+<div class="two">
+<label>Hull + fixed parts (kg)<small>Without motor and battery</small><input id="base" type="number" step="0.05" value="1.2"></label>
+<label>Hull length (m)<input id="len" type="number" step="0.05" value="0.8"></label>
+<label>Battery cells (S)<small>Comma separated</small><input id="cells" value="4,5,6"></label>
+<label>Capacity (Ah)<input id="ah" type="number" step="0.5" value="5"></label>
+</div>
+<h2 style="margin-top:20px">Propeller and hull options</h2>
+<label>Prop diameter (mm)<input id="pd" value="35,40,45,50"></label>
+<label>Pitch / diameter<input id="pp" value="1.0,1.2,1.4"></label>
+<label>Hull beam (mm)<input id="beam" value="140,170,200"></label>
+<label>Deadrise (deg)<input id="dead" value="10,18"></label>
+<label>Minimum top speed to show (km/h)<input id="target" type="number" value="0"></label>
+</section>
+<section style="margin-top:16px">
+<h2>Motors (from datasheet)</h2>
+<div class="motors"><table><thead><tr><th>Name</th><th>Kv</th><th>Rm (Ω)</th><th>I0 (A)</th><th>Imax (A)</th><th>kg</th><th></th></tr></thead><tbody id="mrows"></tbody></table></div>
+<button id="addm" style="margin-top:8px">Add motor</button>
+<p class="note">The three starting motors are example values. Replace them with your datasheet numbers.</p>
+<button class="go" id="run">Run simulation</button>
+<p id="status" role="status" aria-live="polite"></p>
+</section>
+</div>
+<div>
+<section id="out"><h2>Results</h2><p class="note">Press “Run simulation” to see the ranked designs.</p></section>
+<section id="chartbox" style="margin-top:16px;display:none"><h2>Thrust and drag for the selected design</h2><div id="chart"></div>
+<p class="note">Top speed is where the two lines cross. Click any table row to see that design.</p></section>
+</div>
+</main>
+<script>
+const RHO=1000,RHOA=1.2,NU=1e-6,G=9.81,PATM=101325,PV=2300;
+const C={cellV:3.7,cellR:.005,spec:150,eta:.97,wake:.05,ded:.05,air:.008,app:.0004,depth:.03,extra:.15};
+const VG=Array.from({length:90},(_,i)=>.5+i*.5);
+let motors=[["Motor-A 1800Kv",1800,.012,2.5,90,.20],["Motor-B 1600Kv",1600,.008,3,120,.30],["Motor-C 1400Kv",1400,.007,3.5,140,.36]];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function bis(f,a,b){let fa=f(a),fb=f(b);if(!(fa*fb<=0))return null;for(let i=0;i<70;i++){const m=(a+b)/2,fm=f(m);if(fa*fm<=0){b=m;fb=fm}else{a=m;fa=fm}}return(a+b)/2}
+
+function planing(V,mass,b,bd,len){
+ const W=mass*G,Cv=V/Math.sqrt(G*b),CLb=W/(.5*RHO*V*V*b*b),k=.0065*bd,cmin=k>0?Math.pow(.6*k,2.5):1e-9;
+ const CL0=bis(c=>c-k*Math.pow(c,.6)-CLb,cmin,1e4);if(CL0===null)return null;
+ const beta=bd*Math.PI/180;let best=null;
+ for(let i=0;i<10;i++){
+  const td=2+i*7/9,tau=td*Math.PI/180,tp=Math.pow(td,1.1);
+  const lam=bis(l=>tp*(.012*Math.sqrt(l)+.0055*Math.pow(l,2.5)/(Cv*Cv))-CL0,1e-3,8);if(lam===null)continue;
+  const lk=lam*b+b*Math.tan(beta)/(2*Math.PI*Math.tan(tau));if(lk>len)continue;
+  const cf=.075/Math.pow(Math.log10(V*lam*b/NU)-2,2);
+  const d=W*Math.tan(tau)+.5*RHO*V*V*lam*b*b*cf/Math.cos(beta)/Math.cos(tau);
+  if(best===null||d<best)best=d}
+ return best}
+
+const hc={};
+function hull(mass,b,bd,len){
+ const key=[mass,b,bd,len].join();if(hc[key])return hc[key];
+ const vo=1.5*Math.sqrt(G*b),ref=planing(vo,mass,b,bd,len),hump=ref===null?.3*mass*G:ref;
+ return hc[key]=VG.map(V=>{let d=V<vo?hump:planing(V,mass,b,bd,len);if(d===null)return NaN;return d+.5*RHOA*V*V*C.air+.5*RHO*V*V*C.app})}
+
+function pc(J,pd){const J0=.9*pd,x=Math.min(J/J0,1.2),a=.35*pd,q=.045*pd;return[Math.max(a*(1-x),0),Math.max(q*(1-.8*x),.05*q)]}
+
+function op(V,m,S,D,pd,g){
+ const voc=S*C.cellV,rb=S*C.cellR,kvr=m.kv*2*Math.PI/60,Va=V*(1-C.wake);
+ const st=nm=>{const n=nm/g,[kt,kq]=pc(Va/(n*D),pd);return{n,T:kt*RHO*n*n*Math.pow(D,4),Q:kq*RHO*n*n*Math.pow(D,5)}};
+ const cur=nm=>st(nm).Q/(g*C.eta)*kvr+m.i0;
+ const nm=bis(x=>cur(x)*(m.rm+rb)+2*Math.PI*x/kvr-voc,1e-3,voc*m.kv/60*1.05);if(nm===null)return null;
+ const s=st(nm),I=cur(nm),T=s.T*(1-C.ded),p=(voc-I*rb)*I;
+ return{T,I,p,rpm:nm*60,eta:p>0?T*V/p:0,sig:(PATM+RHO*G*C.depth-PV)/(.5*RHO*(Va*Va+Math.pow(Math.PI*s.n*D,2)))}}
+
+function ev(m,S,D,pd,g,b,bd,o){
+ const mass=Number((o.base+C.extra+m.mass+S*C.cellV*o.ah/C.spec).toFixed(2)),dr=hull(mass,b,bd,o.len);
+ let vt=0,prev=null;
+ for(let i=0;i<VG.length;i++){
+  const p=op(VG[i],m,S,D,pd,g),net=p?p.T-dr[i]:NaN;
+  if(!(net>0)){if(i>0&&prev!==null&&!isNaN(net))vt=VG[i-1]+.5*prev/(prev-net);break}
+  vt=VG[i];prev=net}
+ if(vt<=0)return null;
+ const p=op(vt,m,S,D,pd,g);if(!p)return null;
+ return{m,S,D,pd,g,b,bd,mass,vt,kmh:vt*3.6,I:p.I,over:p.I>m.imax,P:p.p,eta:p.eta,run:o.ah*.8/p.I*60,sig:p.sig}}
+
+const list=id=>$(id).value.split(",").map(Number).filter(x=>x>0);
+function drawMotors(){
+ $("mrows").innerHTML=motors.map((r,i)=>"<tr>"+r.map((v,j)=>`<td><input ${j?'type="number" step="any"':""} value="${esc(v)}" data-i="${i}" data-j="${j}" aria-label="motor ${i+1} field ${j+1}"></td>`).join("")+`<td><button class="x" data-del="${i}" aria-label="Remove motor ${i+1}">×</button></td></tr>`).join("")}
+$("mrows").addEventListener("input",e=>{const t=e.target;if(t.dataset.i!==undefined)motors[t.dataset.i][t.dataset.j]=t.dataset.j==0?t.value:Number(t.value)});
+$("mrows").addEventListener("click",e=>{const d=e.target.dataset.del;if(d!==undefined){motors.splice(d,1);drawMotors()}});
+$("addm").onclick=()=>{motors.push(["New motor",1500,.01,3,100,.25]);drawMotors()};
+
+let rows=[],opts;
+function chart(r){
+ const m=r.m,dr=hull(r.mass,r.b,r.bd,opts.len),vmax=Math.min(r.vt*1.4,45),pts=[];
+ VG.forEach((V,i)=>{if(V<=vmax){const p=op(V,m,r.S,r.D,r.pd,r.g);if(p&&!isNaN(dr[i]))pts.push([V*3.6,p.T,dr[i]])}});
+ const W=620,H=300,L=46,B=34,T=12,R=12,xm=Math.max(...pts.map(p=>p[0])),ym=Math.max(...pts.map(p=>Math.max(p[1],p[2])))*1.1;
+ const X=v=>L+v/xm*(W-L-R),Y=v=>H-B-v/ym*(H-B-T),path=k=>pts.map((p,i)=>(i?"L":"M")+X(p[0]).toFixed(1)+" "+Y(p[k]).toFixed(1)).join("");
+ let g="";for(let i=0;i<=4;i++){const y=ym*i/4,x=xm*i/4;g+=`<line x1="${L}" x2="${W-R}" y1="${Y(y)}" y2="${Y(y)}" stroke="var(--line)"/><text x="${L-6}" y="${Y(y)+4}" text-anchor="end" fill="var(--mute)" font-size="12">${y.toFixed(0)}</text><text x="${X(x)}" y="${H-14}" text-anchor="middle" fill="var(--mute)" font-size="12">${x.toFixed(0)}</text>`}
+ $("chart").innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Thrust and drag versus speed">${g}
+ <path d="${path(1)}" fill="none" stroke="var(--teal)" stroke-width="2.5"/><path d="${path(2)}" fill="none" stroke="var(--red)" stroke-width="2.5"/>
+ <line x1="${X(r.kmh)}" x2="${X(r.kmh)}" y1="${T}" y2="${H-B}" stroke="var(--mute)" stroke-dasharray="4 4"/>
+ <text x="${X(r.kmh)-6}" y="${T+12}" text-anchor="end" fill="var(--ink)" font-size="13">${r.kmh.toFixed(1)} km/h</text>
+ <text x="${W-R}" y="${H-2}" text-anchor="end" fill="var(--mute)" font-size="12">Speed (km/h)</text><text x="4" y="${T+10}" fill="var(--mute)" font-size="12">N</text>
+ <text x="${L+8}" y="${Y(pts[0][1])+16}" fill="var(--teal)" font-size="13">Thrust</text><text x="${L+8}" y="${Y(pts[0][2])-8}" fill="var(--red)" font-size="13">Drag</text></svg>`;
+ $("chartbox").style.display="block"}
+
+function show(sel){
+ const ok=rows.filter(r=>!r.over),rej=rows.length-ok.length;
+ if(!ok.length){$("out").innerHTML=`<h2>Results</h2><p>No design works within the motor current limits. Try a lighter boat, a lower cell count, or a motor with a higher current rating.</p>`;$("chartbox").style.display="none";return}
+ const b=ok[sel],top=ok.slice(0,12);
+ $("out").innerHTML=`<h2>Results</h2><div class="best"><div class="big">${b.kmh.toFixed(1)}<span>km/h</span></div>
+ <div class="facts"><b>${esc(b.m.name)}</b>, ${b.S}S battery, ${(b.D*1000).toFixed(0)} mm prop with pitch/diameter ${b.pd}<br>Beam ${(b.b*1000).toFixed(0)} mm, deadrise ${b.bd}°, total mass <b>${b.mass} kg</b><br>Draws <b>${b.I.toFixed(0)} A</b> (limit ${b.m.imax} A), ${b.P.toFixed(0)} W, about ${b.run.toFixed(1)} min at full speed</div></div>
+ <div class="tw"><table class="res"><thead><tr><th>Motor</th><th>Cells</th><th>Prop mm</th><th>P/D</th><th>Beam mm</th><th>Deadrise</th><th>kg</th><th>km/h</th><th>Amps</th><th>Watts</th><th>Eff.</th><th>Minutes</th><th>Cav. σ</th></tr></thead><tbody>
+ ${top.map((r,i)=>`<tr data-k="${i}" class="${i==sel?"on":""}"><td>${esc(r.m.name)}</td><td>${r.S}</td><td>${(r.D*1000).toFixed(0)}</td><td>${r.pd}</td><td>${(r.b*1000).toFixed(0)}</td><td>${r.bd}</td><td>${r.mass}</td><td>${r.kmh.toFixed(1)}</td><td>${r.I.toFixed(0)}</td><td>${r.P.toFixed(0)}</td><td>${(r.eta*100).toFixed(0)}%</td><td>${r.run.toFixed(1)}</td><td>${r.sig.toFixed(2)}</td></tr>`).join("")}</tbody></table></div>
+ <p class="note">${ok.length} designs within motor limits, ${rej} rejected for over-current. Cav. σ below about 0.5 means the propeller will likely cavitate or ventilate, so real thrust will be lower than shown. The propeller model is generic; calibrate it with one thrust-stand test and one GPS speed run.</p>`;
+ chart(b);$("out").dataset.ok=1;window._ok=ok}
+$("out").addEventListener("click",e=>{const tr=e.target.closest("tr[data-k]");if(tr)show(Number(tr.dataset.k))});
+
+$("run").onclick=async()=>{
+ const st=$("status");st.className="";
+ opts={base:Number($("base").value),len:Number($("len").value),ah:Number($("ah").value)};
+ const cells=list("cells"),Ds=list("pd").map(x=>x/1000),pds=list("pp"),bs=list("beam").map(x=>x/1000),ds=list("dead").map(x=>Number(x)),tgt=Number($("target").value)||0;
+ const ms=motors.map(r=>({name:r[0],kv:+r[1],rm:+r[2],i0:+r[3],imax:+r[4],mass:+r[5]}));
+ if(!(opts.base>0&&opts.len>0&&opts.ah>0)||!cells.length||!Ds.length||!pds.length||!bs.length||!ds.length||!ms.length||ms.some(m=>!(m.kv>0&&m.rm>0&&m.imax>0))){st.className="err";st.textContent="Check the inputs: every field needs positive numbers, and lists need at least one value.";return}
+ const combos=[];for(const m of ms)for(const S of cells)for(const D of Ds)for(const p of pds)for(const b of bs)for(const d of ds)combos.push([m,S,D,p,1,b,d]);
+ $("run").disabled=true;rows=[];
+ for(let i=0;i<combos.length;i++){
+  const c=combos[i];let r=null;try{r=ev(...c,opts)}catch(e){}
+  if(r&&r.kmh>=tgt)rows.push(r);
+  if(i%25==0){st.textContent=`Running… ${Math.round(i/combos.length*100)}%`;await new Promise(f=>setTimeout(f))}}
+ rows.sort((a,b)=>b.vt-a.vt);$("run").disabled=false;
+ st.textContent=`Done: ${combos.length} combinations tested.`;show(0)};
+drawMotors();
+</script>
+</body>
+</html>
